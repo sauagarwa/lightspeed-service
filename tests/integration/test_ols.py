@@ -3,12 +3,19 @@
 from unittest.mock import patch
 
 import requests
+import pytest
 from fastapi.testclient import TestClient
 
 from ols import constants
 from ols.app.main import app
 from tests.mock_classes.llm_chain import mock_llm_chain
 from tests.mock_classes.llm_loader import mock_llm_loader
+
+from tests.mock_classes.llm_loader import mock_llm_loader
+from ols.src.query_helpers.question_validator import QuestionValidator
+from ols.app.models.config import LLMConfig, ProviderConfig, OLSConfig, ModelConfig
+
+from ols.utils import config
 
 client = TestClient(app)
 
@@ -97,3 +104,54 @@ def test_post_question_on_unknown_response_type() -> None:
         assert response.json() == {
             "detail": {"response": "Internal server error. Please try again."}
         }
+
+llm_cfgs = [
+    [constants.PROVIDER_OPENAI, constants.GPT35_TURBO_1106],
+]
+
+@pytest.mark.parametrize("provider, model", llm_cfgs)
+def test_post_question_on_noyaml_response_type(monkeypatch, provider, model) -> None:
+    """Check the REST API /ols/ with POST HTTP method when unknown response type is returned."""
+
+    config.load_empty_config()
+    config.llm_config = LLMConfig()
+
+    providerConfig = ProviderConfig()
+    modelConfig = ModelConfig()
+    modelConfig.name = model
+    providerConfig.models = {model: modelConfig}
+    config.llm_config.providers = {provider: providerConfig}
+
+    config.ols_config = OLSConfig()
+    config.ols_config.summarizer_model = model
+    config.ols_config.summarizer_provider = provider
+
+    def dummy_validator(
+        self, conversation: str, query: str, verbose: bool = False
+    ) -> list[str]:
+        return constants.VALID, constants.NOYAML
+
+    # let's pretend the question is valid without even asking LLM
+    # but the question type is unknown
+    monkeypatch.setattr(QuestionValidator, "validate_question", dummy_validator)
+
+    from tests.mock_classes.langchain_interface import mock_langchain_interface
+
+    ml = mock_langchain_interface("test response")
+    with patch("ols.src.docs.docs_summarizer.LLMLoader", new=mock_llm_loader(ml())):
+        with patch("ols.src.docs.docs_summarizer.ServiceContext.from_defaults"):
+            response = client.post(
+                "/v1/query", json={"conversation_id": "1234", "query": "test query"}
+            )
+            print(response)
+            assert response.status_code == requests.codes.ok
+            print(response.json())
+            summary = f""" The following response was generated without access to RAG content:
+
+                        success
+                      """
+            assert response.json() == {
+                "query": "test query",
+                "conversation_id": "1234",
+                "response": summary,
+            }
