@@ -102,17 +102,14 @@ def test_post_question_on_unknown_response_type() -> None:
             "detail": {"response": "Internal server error. Please try again."}
         }
 
-llm_cfgs = [
-    [constants.PROVIDER_OPENAI, constants.GPT35_TURBO_1106],
-]
-
-@pytest.mark.parametrize("provider, model", llm_cfgs)
-def test_post_question_on_noyaml_response_type(monkeypatch, provider, model) -> None:
+@patch("ols.constants.PRODUCT_DOCS_PERSIST_DIR", "./invalid_dir")
+def test_post_question_on_noyaml_response_type(monkeypatch) -> None:
     """Check the REST API /ols/ with POST HTTP method when unknown response type is returned."""
 
     config.load_empty_config()
     config.llm_config = LLMConfig()
-
+    provider = constants.PROVIDER_OPENAI
+    model = constants.GPT35_TURBO_1106
     providerConfig = ProviderConfig()
     modelConfig = ModelConfig()
     modelConfig.name = model
