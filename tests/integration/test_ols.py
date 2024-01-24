@@ -10,11 +10,8 @@ from ols import constants
 from ols.app.main import app
 from tests.mock_classes.llm_chain import mock_llm_chain
 from tests.mock_classes.llm_loader import mock_llm_loader
-
-from tests.mock_classes.llm_loader import mock_llm_loader
 from ols.src.query_helpers.question_validator import QuestionValidator
 from ols.app.models.config import LLMConfig, ProviderConfig, OLSConfig, ModelConfig
-
 from ols.utils import config
 
 client = TestClient(app)
